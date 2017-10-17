@@ -1,10 +1,15 @@
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Threading.Tasks;
+using Microsoft.Azure.Documents;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Host;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Queue;
+using Newtonsoft.Json;
 using Sasquatch.Entities;
 using Sasquatch.OrderProcessingFuncs.Repositories;
 
@@ -13,7 +18,8 @@ namespace Sasquatch.OrderProcessingFuncs
     public static class OrderProducts
     {
         [FunctionName("OrderProducts")]
-        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = null)]HttpRequestMessage req, TraceWriter log)
+        public static async Task<HttpResponseMessage> Run([HttpTrigger(AuthorizationLevel.Function, "post", Route = null)]HttpRequestMessage req,
+            TraceWriter log)
         {
             log.Info("Order Products function triggered.");
 
@@ -40,21 +46,42 @@ namespace Sasquatch.OrderProcessingFuncs
             if (product.Count >= order.Item.Quantity)
             {
                 orderResponse.Message = "Your product will be shipped within 5 business days.";
-                // TODO: Send an email 
             }
             else
             {
-                orderResponse.Message = "Your product will be shipped within 10 business days.";
-                // TODO: Send an email
-                // TODO: Place an item into a queue to manufacture more products.
+                orderResponse.Message = "Your product will be shipped within 10 business days.";        
+                
+                // Place an item into a queue to manufacture more products.
+                var restock = new RestockRequest { ProductId = product.Id, RestockQuantity = order.Item.Quantity * 2 };
+                await SendRestockMessageToQueue(JsonConvert.SerializeObject(restock));
             }
 
             // Decrement the inventory count
-            productRepository.UpdateProductCount(product.Id, order.Item.Quantity).Wait();
+            productRepository.DecrementProductCount(product.Id, order.Item.Quantity).Wait();
 
             return req.CreateResponse(HttpStatusCode.OK, orderResponse);
         }
 
+        #region Private Methods
 
+        private static async Task SendRestockMessageToQueue(string message)
+        {            
+            var queue = GetQueue();
+            await queue.AddMessageAsync(new CloudQueueMessage(message));
+        }
+
+        private static CloudQueue GetQueue()
+        {
+            var queueName = Environment.GetEnvironmentVariable("QueueName");
+            var queueConnectionString = Environment.GetEnvironmentVariable("AzureWebJobsStorage");
+            var storageAccount = CloudStorageAccount.Parse(queueConnectionString);        
+            var queueClient = storageAccount.CreateCloudQueueClient();
+            var queue = queueClient.GetQueueReference(queueName);
+            queue.CreateIfNotExists();
+
+            return queue;
+        }
+
+        #endregion
     }
 }

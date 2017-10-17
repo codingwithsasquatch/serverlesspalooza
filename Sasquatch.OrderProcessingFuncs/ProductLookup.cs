@@ -15,8 +15,7 @@ namespace Sasquatch.OrderProcessingFuncs
     public static class ProductLookup
     {
         /// <summary>
-        /// This function performs a simple lookup of the inventory
-        /// count of a product.
+        /// This function retrieves a product from the respository.
         /// </summary>
         /// <param name="req">Incoming request</param>
         /// <param name="log">Log diagnostics</param>

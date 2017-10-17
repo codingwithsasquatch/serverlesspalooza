@@ -61,7 +61,7 @@ namespace Sasquatch.OrderProcessingFuncs.Repositories
             return query.FirstOrDefault();
         }
 
-        public async Task<bool> UpdateProductCount(string productId, int count)
+        public async Task<bool> DecrementProductCount(string productId, int count)
         {
             var product = GetProductById(productId);
             if (product == null) return false;
@@ -69,6 +69,18 @@ namespace Sasquatch.OrderProcessingFuncs.Repositories
             product.Count -= count;
             var documentUri = UriFactory.CreateDocumentUri(_documentDbSettings.DatabaseId, _documentDbSettings.CollectionId, product.Id);
             await _documentClient.ReplaceDocumentAsync(documentUri, product);                
+
+            return true;
+        }
+
+        public async Task<bool> IncrementProductCount(string productId, int count)
+        {
+            var product = GetProductById(productId);
+            if (product == null) return false;
+
+            product.Count += count;
+            var documentUri = UriFactory.CreateDocumentUri(_documentDbSettings.DatabaseId, _documentDbSettings.CollectionId, product.Id);
+            await _documentClient.ReplaceDocumentAsync(documentUri, product);
 
             return true;
         }
